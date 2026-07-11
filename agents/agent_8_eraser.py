@@ -1,10 +1,15 @@
 # agents/agent_8_eraser.py
 """Agent 8: ERASER — Epistemic Review & Scrutiny Agent.
-Runs after EVERY agent (0-7) asking 8 structured questions.
-Can trigger re-runs if missing source_urls or numerical contradictions are found."""
-import json
-from typing import Dict, Any, List
+Per-agent audits (0-7) are deterministic rule-based checks.
+Final audit (agent_id=8) uses LLM for deep structured interrogation."""
+import json, os
+from typing import Dict, Any
 from datetime import datetime
+from dotenv import load_dotenv
+from langchain_nvidia_ai_endpoints import ChatNVIDIA
+from langchain_core.prompts import ChatPromptTemplate
+
+load_dotenv()
 
 ERASER_QUESTIONS = [
     "WHY: What is the reasoning behind this step?",
@@ -17,6 +22,14 @@ ERASER_QUESTIONS = [
     "RAW: Show the original prompt and raw agent response."
 ]
 
+FINAL_ERASER_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """You are ERASER, the ARGUS system's internal epistemic skeptic. You are given a concise summary of the pipeline run. Provide a brief critical assessment in 3-5 sentences covering: key findings, any data quality issues, and whether the conclusion is supported by the evidence."""),
+    ("human", """Pipeline summary:
+{pipeline_state}
+
+ERASER assessment:""")
+])
+
 def audit_agent_0(output: Dict) -> Dict:
     flags = []
     specificity = output.get("specificity_score", 0)
@@ -28,10 +41,14 @@ def audit_agent_0(output: Dict) -> Dict:
         "agent_id": 0, "agent_name": "Search Quality Gate",
         "status": "FLAG" if flags else "PASS", "flags": flags,
         "answers": {
-            "WHY": f"Extracted entities from user input: corridor={output.get('corridor')}, commodity={output.get('commodity')}, economy={output.get('economy')}", "WHAT": f"Entities extracted: {output.get('entities', {})}", "WHERE": "No external sources — input from user only",
+            "WHY": f"Extracted entities from user input: corridor={output.get('corridor')}, commodity={output.get('commodity')}, economy={output.get('economy')}",
+            "WHAT": f"Entities extracted: {output.get('entities', {})}",
+            "WHERE": "No external sources — input from user only",
             "IS": "Yes, keyword-based extraction is deterministic and explainable",
-            "WHAT_IF": f"If specificity threshold raised to 0.6, this input would {'still pass' if specificity >= 0.6 else 'be rejected (specificity=' + str(specificity) + ')'}", "WHO": "No other agents have run yet",
-            "MISSING": "No satellite or AIS data at this stage", "RAW": f"Input: {output.get('input', '')[:100]}... | Keywords: crisis entity mapping"
+            "WHAT_IF": f"If specificity threshold raised to 0.6, this input would {'still pass' if specificity >= 0.6 else 'be rejected (specificity=' + str(specificity) + ')'}",
+            "WHO": "No other agents have run yet",
+            "MISSING": "No satellite or AIS data at this stage",
+            "RAW": f"Input: {str(output.get('input', ''))[:100]}... | Keywords: crisis entity mapping"
         }
     }
 
@@ -57,8 +74,8 @@ def audit_agent_1(output: Dict) -> Dict:
             "IS": "Yes, each claim has a source_url and source_tier for traceability",
             "WHAT_IF": "If relevance filter was stricter, fewer claims would pass downstream",
             "WHO": "No other agents have run yet",
-            "MISSING": f"Live API data not integrated — using pre-loaded documents only",
-            "RAW": f"Loaded from data/articles/ | Filter applied: corridor + commodity + economy match"
+            "MISSING": "Live API data not integrated — using pre-loaded documents only",
+            "RAW": "Loaded from data/articles/ | Filter applied: corridor + commodity + economy match"
         }
     }
 
@@ -78,12 +95,12 @@ def audit_agent_2(output: Dict) -> Dict:
         "answers": {
             "WHY": f"Cross-checked {len(verified)+len(flagged)+len(quarantined)} claims against EIA baseline",
             "WHAT": f"Verified: {len(verified)}, Flagged: {len(flagged)}, Quarantined: {len(quarantined)}",
-            "WHERE": f"EIA baseline source: data/eia_baseline.json",
-            "IS": f"Verified claims are within 10% EIA tolerance. Flagged claims exceeded tolerance.",
+            "WHERE": "EIA baseline source: data/eia_baseline.json",
+            "IS": "Verified claims are within 10% EIA tolerance. Flagged claims exceeded tolerance.",
             "WHAT_IF": "If tolerance tightened to 5%, more claims would be flagged. If loosened to 20%, some false positives pass.",
             "WHO": "Agent 1 supplied the claims. Agent 0 validated the query scope.",
             "MISSING": "Real-time EIA API not connected — using static baseline snapshot.",
-            "RAW": "Cross-check: numerical regex extraction → baseline comparison → pass/fail/tolerance calc"
+            "RAW": "Cross-check: numerical regex extraction -> baseline comparison -> pass/fail/tolerance calc"
         }
     }
 
@@ -125,11 +142,11 @@ def audit_agent_4(output: Dict) -> Dict:
             "WHY": f"Applied Cambridge formula to {len(components)} components with weights: 35/25/20/10/10",
             "WHAT": f"Risk Score: {output.get('risk_score')} ({output.get('risk_level')}) — Components: {[c['name']+'='+str(c['value']) for c in components]}",
             "WHERE": f"Components source: {[c.get('source_url','NO URL') for c in components]}",
-            "IS": f"Formula validated to F1 0.96 in original Cambridge paper. Deterministic math — no hallucination risk.",
+            "IS": "Formula validated to F1 0.96 in original Cambridge paper. Deterministic math — no hallucination risk.",
             "WHAT_IF": f"If Exposure_Breadth weight changes from 0.35 to 0.40, score increases by ~0.043",
             "WHO": "Agent 3 provides graph centrality data. Agent 2 provides verified claims.",
-            "MISSING": f"Real-time AIS data, refinery blending costs not modeled in components.",
-            "RAW": f"Risk = 0.35*EB + 0.25*DR + 0.20*DC + 0.10*TC + 0.10*ED"
+            "MISSING": "Real-time AIS data, refinery blending costs not modeled in components.",
+            "RAW": "Risk = 0.35*EB + 0.25*DR + 0.20*DC + 0.10*TC + 0.10*ED"
         }
     }
 
@@ -140,6 +157,8 @@ def audit_agent_5(output: Dict) -> Dict:
         flags.append("No narrative generated.")
     if len(narrative.split()) < 10:
         flags.append("Narrative is too short — may lack detail.")
+    if output.get("error"):
+        flags.append(f"LLM error: {output['error']}")
     return {
         "agent_id": 5, "agent_name": "CSCO Synthesizer",
         "status": "FLAG" if flags else "PASS", "flags": flags,
@@ -151,7 +170,7 @@ def audit_agent_5(output: Dict) -> Dict:
             "WHAT_IF": "If risk score was lower, narrative tone would shift from 'immediate action' to 'monitoring'",
             "WHO": "Agent 4 provides risk data. Agent 2 provides verified claims.",
             "MISSING": "Geopolitical negotiation outcomes are unpredictable — noted as low confidence inference.",
-            "RAW": f"Prompt: Use ONLY verified claims + risk data. Cite source_url after every claim."
+            "RAW": f"Prompt: Use ONLY verified claims + risk data. Cite source_url after every claim. LLM generated: {output.get('llm_generated', False)}"
         }
     }
 
@@ -171,7 +190,7 @@ def audit_agent_6(output: Dict) -> Dict:
             "WHAT_IF": f"Sensitivity analysis: {output.get('sensitivity_analysis',{})}",
             "WHO": "Agent 3 graph informs alternative availability. Agent 2 verified claims feed criteria values.",
             "MISSING": "Refinery-specific crude compatibility data not modeled.",
-            "RAW": f"Matrix: {len(alternatives)} alternatives × {len(output.get('criteria',[]))} criteria"
+            "RAW": f"Matrix: {len(alternatives)} alternatives x {len(output.get('criteria',[]))} criteria"
         }
     }
 
@@ -194,7 +213,7 @@ def audit_agent_7(output: Dict) -> Dict:
             "WHAT_IF": f"If threshold raised to 0.40, this would {'not halt' if variance < 0.40 else 'still halt'}",
             "WHO": "Agent 4 and Agent 6 opinions compared. All previous agents audited by ERASER already.",
             "MISSING": "No probabilistic model — deterministic variance check only.",
-            "RAW": f"variance = abs(Agent_4_risk({output.get('agent_opinions',{}).get('Agent_4_Risk_Score','?')}) - Agent_6_sourcing({output.get('agent_opinions',{}).get('Agent_6_Sourcing_Proxy (1-Reliability)','?')}))"
+            "RAW": f"variance = abs(Agent_4_risk(...) - Agent_6_sourcing(...))"
         }
     }
 
@@ -203,7 +222,51 @@ AUDIT_FUNCTIONS = {
     4: audit_agent_4, 5: audit_agent_5, 6: audit_agent_6, 7: audit_agent_7
 }
 
-def run_agent_8(agent_id: int, agent_output: Dict) -> Dict[str, Any]:
+def final_llm_audit(pipeline_state: Dict) -> Dict:
+    api_key = os.getenv("NVIDIA_API_KEY")
+    model = os.getenv("NIM_MODEL", "meta/llama-3.1-70b-instruct")
+    if not api_key:
+        return {"agent_id": 8, "agent_name": "Final ERASER (LLM)", "status": "ERROR", "error": "missing_api_key"}
+    summary = {}
+    a0 = pipeline_state.get("agent_0", {})
+    a1 = pipeline_state.get("agent_1", {})
+    a2 = pipeline_state.get("agent_2", {})
+    a3 = pipeline_state.get("agent_3", {})
+    a4 = pipeline_state.get("agent_4_risk", {})
+    a5 = pipeline_state.get("agent_5", {})
+    a6 = pipeline_state.get("agent_6", {})
+    a7 = pipeline_state.get("agent_7", {})
+    summary["query"] = a0.get("input", "")[:100]
+    summary["entities"] = f"corridor={a0.get('corridor')}, commodity={a0.get('commodity')}, economy={a0.get('economy')}"
+    summary["specificity"] = a0.get("specificity_score", 0)
+    summary["claims_found"] = len(a1.get("claims", []))
+    summary["verified"] = len(a2.get("verified_claims", []))
+    summary["flagged"] = len(a2.get("flagged_claims", []))
+    summary["flagged_reasons"] = [f.get("reason","")[:100] for f in a2.get("flagged_claims", [])[:3]]
+    summary["graph_nodes"] = a3.get("graph_summary", {}).get("total_nodes", 0)
+    summary["graph_edges"] = a3.get("graph_summary", {}).get("total_edges", 0)
+    summary["risk_score"] = a4.get("risk_score", 0)
+    summary["risk_level"] = a4.get("risk_level", "?")
+    summary["narrative_llm"] = a5.get("llm_generated", False)
+    summary["narrative_preview"] = (a5.get("narrative","")[:200] + "...") if a5.get("narrative") else "N/A"
+    summary["alternatives_top"] = [a.get("name") for a in a6.get("alternatives", [])[:3]]
+    summary["status"] = a7.get("status", "?")
+    summary["variance"] = a7.get("variance", 0)
+    try:
+        llm = ChatNVIDIA(model=model, temperature=0, timeout=30)
+        chain = FINAL_ERASER_PROMPT | llm
+        response = chain.invoke({"pipeline_state": json.dumps(summary, indent=2)})
+        return {
+            "agent_id": 8, "agent_name": "Final ERASER (LLM)",
+            "status": "PASS", "llm_audit": response.content.strip(),
+            "model": model, "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+    except Exception as e:
+        return {"agent_id": 8, "agent_name": "Final ERASER (LLM)", "status": "ERROR", "error": str(e)}
+
+def run_agent_8(agent_id: int, agent_output: Dict = None, pipeline_state: Dict = None) -> Dict[str, Any]:
+    if agent_id == 8:
+        return final_llm_audit(pipeline_state or {})
     audit_fn = AUDIT_FUNCTIONS.get(agent_id)
     if not audit_fn:
         return {"agent_id": agent_id, "agent_name": "Unknown", "status": "ERROR", "error": f"No audit function for agent {agent_id}"}

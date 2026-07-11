@@ -33,6 +33,7 @@ class ArgusState(TypedDict):
     agent_6_eraser: Dict[str, Any]
     agent_7: Dict[str, Any]
     agent_7_eraser: Dict[str, Any]
+    agent_8_final_eraser: Dict[str, Any]
     human_decision: Dict[str, Any]
     graph_data: Dict[str, Any]
 
@@ -47,6 +48,7 @@ def initial_state(user_input: str) -> ArgusState:
         "agent_5": {}, "agent_5_eraser": {},
         "agent_6": {}, "agent_6_eraser": {},
         "agent_7": {}, "agent_7_eraser": {},
+        "agent_8_final_eraser": {},
         "human_decision": {}, "graph_data": {}
     }
 
@@ -110,6 +112,11 @@ def node_7(state: ArgusState) -> ArgusState:
     state["status"] = result.get("status", "UNKNOWN")
     return state
 
+def node_final_eraser(state: ArgusState) -> ArgusState:
+    result = run_agent_8(8, pipeline_state=dict(state))
+    state["agent_8_final_eraser"] = result
+    return state
+
 def should_halt(state: ArgusState) -> str:
     s = state.get("status", "")
     if s in ("REJECTED", "HALTED"):
@@ -126,6 +133,7 @@ workflow.add_node("agent_4", node_4)
 workflow.add_node("agent_5", node_5)
 workflow.add_node("agent_6", node_6)
 workflow.add_node("agent_7", node_7)
+workflow.add_node("final_eraser", node_final_eraser)
 
 workflow.set_entry_point("agent_0")
 workflow.add_edge("agent_0", "agent_1")
@@ -135,6 +143,7 @@ workflow.add_edge("agent_3", "agent_4")
 workflow.add_edge("agent_4", "agent_5")
 workflow.add_edge("agent_5", "agent_6")
 workflow.add_edge("agent_6", "agent_7")
-workflow.add_conditional_edges("agent_7", should_halt, {"halt": END, "continue": END})
+workflow.add_edge("agent_7", "final_eraser")
+workflow.add_edge("final_eraser", END)
 
 argus_app = workflow.compile()

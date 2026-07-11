@@ -3,8 +3,10 @@
 import asyncio, json, sys
 from typing import Dict
 from datetime import datetime
+from dotenv import load_dotenv
 from graph.argus_graph import argus_app, initial_state
 
+load_dotenv()
 sys.stdout.reconfigure(encoding="utf-8")
 
 async def run_argus(user_input: str) -> dict:
@@ -96,6 +98,16 @@ def print_result(result: dict):
     print_agent_result(5, "CSCO Synthesizer", result.get("agent_5", {}), result.get("agent_5_eraser"))
     print_agent_result(6, "Alternative Sourcing (MCDA)", result.get("agent_6", {}), result.get("agent_6_eraser"))
     print_agent_result(7, "Consensus & Conflict Detector", result.get("agent_7", {}), result.get("agent_7_eraser"))
+    fe = result.get("agent_8_final_eraser", {})
+    print_section("Final ERASER (LLM Audit)")
+    if fe.get("status") == "ERROR":
+        print(f"  [ERROR] {fe.get('error', 'Unknown error')}")
+    elif fe.get("llm_audit"):
+        print(f"  Model: {fe.get('model', 'N/A')}")
+        audit_text = fe["llm_audit"]
+        for line in audit_text.split("\n")[:8]:
+            print(f"    {line[:120]}")
+        print(f"  (... {len(audit_text.split())} words total)")
     print()
     final_status = result.get("status", "UNKNOWN")
     if final_status == "HALTED":
