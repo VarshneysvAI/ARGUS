@@ -1,0 +1,97 @@
+{
+  "directed": true,
+  "multigraph": true,
+  "graph": {},
+  "nodes": [
+    {
+      "type": "VERIFIED_Corridor",
+      "label": "EIA STEO April 2026: Hormuz disruption reduces glo",
+      "claim": "EIA STEO April 2026: Hormuz disruption reduces global oil supply by 3%. The ongoing conflict in the Middle East has severely disrupted oil flows through the Strait of Hormuz. Flows fell from approxima",
+      "source_url": "https://www.eia.gov/outlooks/steo/archives/apr26.pdf",
+      "retrieved_at": "2026-07-10T09:00:00Z",
+      "verification_status": "VERIFIED",
+      "agent_confidence": 0.95,
+      "id": "node_0"
+    },
+    {
+      "type": "VERIFIED_Corridor",
+      "label": "India's crude oil import dependency reaches 88.6%,",
+      "claim": "India's crude oil import dependency reaches 88.6%, government assures adequate reserves. India's crude oil import dependency stands at approximately 88.6% as of early 2026. The government maintains to",
+      "source_url": "https://pib.gov.in/PressReleaseDetail.aspx?PRID=2000001",
+      "retrieved_at": "2026-07-10T09:10:00Z",
+      "verification_status": "VERIFIED",
+      "agent_confidence": 0.95,
+      "id": "node_1"
+    },
+    {
+      "type": "VERIFIED_SPR_Facility",
+      "label": "India's total petroleum reserves provide 60 days c",
+      "claim": "India's total petroleum reserves provide 60 days cover despite SPR limitations. India maintains a total reserve capacity of approximately 74 days of crude oil and petroleum product requirements, with ",
+      "source_url": "https://pib.gov.in/PressReleaseDetail.aspx?PRID=2000010",
+      "retrieved_at": "2026-07-10T09:30:00Z",
+      "verification_status": "VERIFIED",
+      "agent_confidence": 0.95,
+      "id": "node_2"
+    },
+    {
+      "type": "VERIFIED_Supplier",
+      "label": "UAE Habshan-Fujairah pipeline bypass provides crit",
+      "claim": "UAE Habshan-Fujairah pipeline bypass provides critical alternative route. The UAE's 1.8 million b/d Habshan to Fujairah pipeline bypass is operating near capacity, providing a critical alternative rou",
+      "source_url": "https://www.iea.org/reports/oil-market-report-june-2026/uae-pipeline",
+      "retrieved_at": "2026-07-10T09:25:00Z",
+      "verification_status": "VERIFIED",
+      "agent_confidence": 0.95,
+      "id": "node_3"
+    }
+  ],
+  "edges": [
+    {
+      "rel_type": "RELATES_TO",
+      "source_url": "https://www.eia.gov/outlooks/steo/archives/apr26.pdf",
+      "agent_confidence": 0.95,
+      "source": "node_0",
+      "target": "node_1",
+      "key": 0
+    },
+    {
+      "rel_type": "RELATES_TO",
+      "source_url": "https://www.eia.gov/outlooks/steo/archives/apr26.pdf",
+      "agent_confidence": 0.95,
+      "source": "node_0",
+      "target": "node_2",
+      "key": 0
+    },
+    {
+      "rel_type": "RELATES_TO",
+      "source_url": "https://www.eia.gov/outlooks/steo/archives/apr26.pdf",
+      "agent_confidence": 0.95,
+      "source": "node_0",
+      "target": "node_3",
+      "key": 0
+    },
+    {
+      "rel_type": "RELATES_TO",
+      "source_url": "https://pib.gov.in/PressReleaseDetail.aspx?PRID=2000001",
+      "agent_confidence": 0.95,
+      "source": "node_1",
+      "target": "node_2",
+      "key": 0
+    },
+    {
+      "rel_type": "RELATES_TO",
+      "source_url": "https://pib.gov.in/PressReleaseDetail.aspx?PRID=2000001",
+      "agent_confidence": 0.95,
+      "source": "node_1",
+      "target": "node_3",
+      "key": 0
+    },
+    {
+      "rel_type": "RELATES_TO",
+      "source_url": "https://pib.gov.in/PressReleaseDetail.aspx?PRID=2000010",
+      "agent_confidence": 0.95,
+      "source": "node_2",
+      "target": "node_3",
+      "key": 0
+    }
+  ]
+}

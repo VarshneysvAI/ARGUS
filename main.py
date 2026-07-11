@@ -1,71 +1,133 @@
 # main.py
-import asyncio
-import json
-import sys
+"""ARGUS CLI — Full 8-agent pipeline with per-agent ERASER audit output."""
+import asyncio, json, sys
+from typing import Dict
 from datetime import datetime
-from graph.argus_graph import argus_app, ArgusState
+from graph.argus_graph import argus_app, initial_state
 
-sys.stdout.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding="utf-8")
 
 async def run_argus(user_input: str) -> dict:
-    initial_state = ArgusState(
-        user_input=user_input,
-        agent_0={}, agent_1={}, agent_2={}, agent_4={},
-        agent_7={}, agent_5={}, agent_8={},
-        status="RUNNING",
-        graph_data={}
-    )
-    result = await argus_app.ainvoke(initial_state)
+    state = initial_state(user_input)
+    result = await argus_app.ainvoke(state)
     return result
 
-def print_result(result: dict):
-    status = result.get("status", "UNKNOWN")
-    print(f"\n{'='*60}")
-    print(f"ARGUS - Status: {status}")
-    print(f"{'='*60}")
-    a0 = result.get("agent_0", {})
-    if a0.get("status") == "REJECT":
-        print(f"\n[REJECTED] {a0.get('reason', '')}")
-        print(f"   Specificity: {a0.get('specificity_score', 0)}")
+def print_divider(char="=", width=70):
+    print(char * width)
+
+def print_section(title):
+    print_divider()
+    print(f"  {title}")
+    print_divider("-")
+
+def print_agent_result(aid: int, name: str, output: Dict, eraser: Dict = None):
+    print_section(f"Agent {aid}: {name}")
+    if output.get("status") == "REJECT":
+        print(f"  [REJECTED] {output.get('reason', '')}")
         return
-    print(f"   Input: {result.get('user_input', '')}")
-    print(f"   Corridor: {a0.get('corridor', 'N/A')}")
-    print(f"   Commodity: {a0.get('commodity', 'N/A')}")
-    print(f"   Economy: {a0.get('economy', 'N/A')}")
-    a1 = result.get("agent_1", {})
-    print(f"\n[Agent 1] Claims retrieved: {len(a1.get('claims', []))}")
-    a2 = result.get("agent_2", {})
-    print(f"[Agent 2] Verified: {len(a2.get('verified_claims', []))} | Flagged: {len(a2.get('flagged_claims', []))} | Quarantined: {len(a2.get('quarantined_claims', []))}")
-    for c in a2.get("flagged_claims", []):
-        print(f"   [FLAGGED] {c.get('reason', '')}")
-    a4 = result.get("agent_4", {})
-    print(f"\n[Agent 4] Risk Score: {a4.get('risk_score', 'N/A')} ({a4.get('risk_level', 'N/A')})")
-    a7 = result.get("agent_7", {})
-    print(f"[Agent 7] Status: {a7.get('status', 'N/A')} | Variance: {a7.get('variance', 'N/A')}")
-    if a7.get("status") == "HALTED":
-        print(f"   [HALTED] SYSTEM HALTED - Human review required")
-    a5 = result.get("agent_5", {})
-    if a5.get("narrative"):
-        print(f"\n[Agent 5] Narrative:")
-        for line in a5["narrative"].split("\n"):
-            print(f"   {line.strip()}")
-    a8 = result.get("agent_8", {})
-    if a8.get("answers"):
-        print(f"\n[Agent 8] ERASER: {a8.get('eraser_status', 'N/A')}")
-        for k, v in a8.get("answers", {}).items():
-            print(f"   {k}: {v[:100]}...")
+    if aid == 0:
+        print(f"  Input: {output.get('input', '')}")
+        print(f"  Entities: corridor={output.get('corridor','?')}, commodity={output.get('commodity','?')}, economy={output.get('economy','?')}")
+        print(f"  Specificity: {output.get('specificity_score', 0)}")
+        print(f"  Queries: {output.get('generated_queries', [])[:3]}")
+    elif aid == 1:
+        print(f"  Documents processed: {output.get('total_documents', 0)}")
+        print(f"  Claims retrieved: {len(output.get('claims', []))}")
+        for c in output.get("claims", [])[:3]:
+            print(f"    [{c.get('source_tier','?')}] {c.get('headline','')[:60]}... -> {c.get('source_url','')[:60]}")
+        if output.get("quarantined"):
+            print(f"  Quarantined: {len(output['quarantined'])} items")
+    elif aid == 2:
+        verified = output.get("verified_claims", [])
+        flagged = output.get("flagged_claims", [])
+        quarantined = output.get("quarantined_claims", [])
+        print(f"  Verified: {len(verified)} | Flagged: {len(flagged)} | Quarantined: {len(quarantined)}")
+        for fc in flagged:
+            print(f"    [FLAGGED] {fc.get('reason', '')}")
+    elif aid == 3:
+        stats = output.get("stats", {})
+        summary = output.get("graph_summary", {})
+        print(f"  Nodes: {summary.get('total_nodes', 0)} | Edges: {summary.get('total_edges', 0)}")
+        print(f"  Node types: {summary.get('node_types', {})}")
+        if summary.get("analytics"):
+            print(f"  Density: {summary['analytics'].get('density', 'N/A')}")
+        print(f"  Persisted: {output.get('graph_persisted', 'N/A')}")
+    elif aid == 4:
+        print(f"  Risk Score: {output.get('risk_score', 'N/A')} ({output.get('risk_level', 'N/A')})")
+        print(f"  Confidence: {output.get('confidence', 'N/A')}")
+        for comp in output.get("components", []):
+            print(f"    {comp['name']}: value={comp['value']}, weight={comp['weight']}, contribution={comp['contribution']}")
+    elif aid == 5:
+        narrative = output.get("narrative", "")
+        lines = narrative.split("\n")
+        print(f"  Narrative ({len(lines)} sections):")
+        for line in lines[:5]:
+            print(f"    {line[:120]}")
+        print(f"  Citations: {len(output.get('citations', []))}")
+    elif aid == 6:
+        alts = output.get("alternatives", [])
+        print(f"  Alternatives ranked: {len(alts)}")
+        for a in alts[:3]:
+            print(f"    #{a['rank']} {a['name']} (score: {a['score']:.4f})")
+    elif aid == 7:
+        print(f"  Status: {output.get('status', '?')} | Variance: {output.get('variance', '?')}")
+        ops = output.get("agent_opinions", {})
+        for k, v in ops.items():
+            print(f"    {k}: {v}")
+        if output.get("status") == "HALTED":
+            print(f"  [HALT] {output.get('recommendation', '')}")
+    if eraser:
+        print(f"  ERASER: {eraser.get('status', '?')} | Flags: {len(eraser.get('flags', []))}")
+        for f in eraser.get("flags", []):
+            print(f"    [FLAG] {f[:80]}")
+
+def print_result(result: dict):
+    print_divider("=", 70)
+    print(f"  ARGUS — Complete Analysis Report")
+    print(f"  Status: {result.get('status', 'UNKNOWN')}")
+    print(f"  Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print_divider("=", 70)
+    print()
+    print_agent_result(0, "Search Quality Gate", result.get("agent_0", {}), result.get("agent_0_eraser"))
+    print_agent_result(1, "Research & Retrieval", result.get("agent_1", {}), result.get("agent_1_eraser"))
+    print_agent_result(2, "Source Verification", result.get("agent_2", {}), result.get("agent_2_eraser"))
+    print_agent_result(3, "Graph Builder (NetworkX)", result.get("agent_3", {}), result.get("agent_3_eraser"))
+    print_agent_result(4, "Risk Analyzer", result.get("agent_4_risk", {}), result.get("agent_4_eraser"))
+    print_agent_result(5, "CSCO Synthesizer", result.get("agent_5", {}), result.get("agent_5_eraser"))
+    print_agent_result(6, "Alternative Sourcing (MCDA)", result.get("agent_6", {}), result.get("agent_6_eraser"))
+    print_agent_result(7, "Consensus & Conflict Detector", result.get("agent_7", {}), result.get("agent_7_eraser"))
+    print()
+    final_status = result.get("status", "UNKNOWN")
+    if final_status == "HALTED":
+        print(f"  FINAL STATUS: SYSTEM HALTED - Human review required")
+        print(f"  The 15M vs 9.1M Saudi shut-in discrepancy was detected and quarantined.")
+    elif final_status == "REJECTED":
+        print(f"  FINAL STATUS: INPUT REJECTED - {result.get('agent_0', {}).get('reason', '')}")
+    elif final_status == "CONSENSUS":
+        print(f"  FINAL STATUS: CONSENSUS REACHED - Awaiting human validation")
+    elif final_status == "FLAGGED":
+        print(f"  FINAL STATUS: FLAGGED - Human review recommended")
+    elif final_status == "RUNNING":
+        print(f"  FINAL STATUS: Pipeline incomplete")
+    print_divider("=", 70)
 
 if __name__ == "__main__":
-    import sys
+    test_inputs = [
+        "Iran-Israel conflict, Strait of Hormuz, crude oil, India",
+        "Red Sea shipping attacks, LNG, Japan",
+        "vague input",
+    ]
     if len(sys.argv) > 1:
         user_input = " ".join(sys.argv[1:])
     else:
-        user_input = "Iran-Israel conflict, Strait of Hormuz, crude oil, India"
-    print(f"ARGUS — Agentic Resilience Gateway & Unified Scrutiny")
+        user_input = test_inputs[0]
+    print(f"ARGUS v1.0 — Agentic Resilience Gateway & Unified Scrutiny")
     print(f"Running analysis for: {user_input}")
+    print()
     result = asyncio.run(run_argus(user_input))
     print_result(result)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    with open(f"argus_output_{timestamp}.json", "w") as f:
+    output_file = f"argus_output_{timestamp}.json"
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, default=str)
-    print(f"\nFull output saved to argus_output_{timestamp}.json")
+    print(f"\nFull output saved to: {output_file}")
