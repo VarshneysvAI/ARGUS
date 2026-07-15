@@ -1,6 +1,6 @@
 # main.py
 """ARGUS CLI — Full 8-agent pipeline with per-agent ERASER audit output."""
-import asyncio, json, sys
+import asyncio, json, sys, uuid
 from typing import Dict
 from datetime import datetime
 from dotenv import load_dotenv
@@ -9,10 +9,24 @@ from graph.argus_graph import argus_app, initial_state
 load_dotenv()
 sys.stdout.reconfigure(encoding="utf-8")
 
-async def run_argus(user_input: str) -> dict:
-    state = initial_state(user_input)
-    result = await argus_app.ainvoke(state)
-    return result
+def run_argus(user_input: str) -> dict:
+    session_id = str(uuid.uuid4())[:8]
+    state = initial_state(user_input, session_id)
+    
+    print(f"\n🚀 Starting ARGUS Pipeline (Session: {session_id})")
+    print("Each agent will log its completion below in real-time. Please wait...\n")
+    
+    current_state = state
+    for event in argus_app.stream(current_state):
+        for node_name, node_state in event.items():
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ {node_name.upper()} completed.")
+            if "eraser" in node_name and isinstance(node_state, dict) and node_name in node_state:
+                print(f"    -> ERASER Audit: {node_state[node_name].get('status', 'OK')}")
+            
+            if isinstance(node_state, dict):
+                current_state.update(node_state)
+                
+    return current_state
 
 def print_divider(char="=", width=70):
     print(char * width)
@@ -136,10 +150,15 @@ if __name__ == "__main__":
     print(f"ARGUS v1.0 — Agentic Resilience Gateway & Unified Scrutiny")
     print(f"Running analysis for: {user_input}")
     print()
-    result = asyncio.run(run_argus(user_input))
+    result = run_argus(user_input)
     print_result(result)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"argus_output_{timestamp}.json"
+    
+    # Save for the Streamlit dashboard
+    output_file = "latest_run.json"
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, default=str)
-    print(f"\nFull output saved to: {output_file}")
+    
+    print(f"\n" + "="*70)
+    print(f"✅ Full output saved to: {output_file}")
+    print(f"🚀 You can now run 'streamlit run app.py' to view this data in the dashboard!")
+    print("="*70 + "\n")

@@ -1,9 +1,8 @@
 # app.py
 """ARGUS — Streamlit Decision Workspace. Full 8-agent UI with conflict visualization, 
 agent debate view, uncertainty disclosure, and PDF export."""
-import asyncio, json, re, os
+import asyncio, json, re, uuid
 from datetime import datetime
-from pathlib import Path
 
 import streamlit as st
 import plotly.graph_objects as go
@@ -36,8 +35,96 @@ for key in ("result", "human_decision", "show_debate", "decision_logged", "last_
         st.session_state[key] = None if key != "show_debate" else False
         if key == "decision_logged":
             st.session_state[key] = False
-        if key == "selected_tab":
-            st.session_state[key] = "Input"
+
+
+
+# ── Helpers ──
+def log_decision(result: dict, action: str, reason: str = ""):
+    log = {
+        "decision_id": f"dec_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{id(result)}",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "human_action": action, "reason": reason or "Accepted after review",
+        "risk_score": result.get("agent_4_risk", {}).get("risk_score"),
+        "risk_level": result.get("agent_4_risk", {}).get("risk_level"),
+        "variance": result.get("agent_7", {}).get("variance"),
+        "agent_7_status": result.get("agent_7", {}).get("status"),
+    }
+    try:
+        with open("decision_log.jsonl", "a") as f:
+            f.write(json.dumps(log) + "\n")
+    except IOError:
+        pass
+    st.session_state.last_log = log
+
+def generate_pdf(result: dict) -> str:
+    class ARGUSReport(FPDF):
+        def header(self):
+            self.set_font("Helvetica", "B", 16)
+            self.set_text_color(231, 76, 60)
+            self.cell(0, 10, "ARGUS Energy Supply Chain Risk Report", 0, 1, "C")
+            self.set_font("Helvetica", "", 8)
+            self.set_text_color(150, 150, 150)
+            self.cell(0, 5, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}", 0, 1, "C")
+            self.ln(5)
+        def section(self, title, body):
+            self.set_font("Helvetica", "B", 11)
+            self.set_text_color(41, 128, 185)
+            self.cell(0, 7, title, 0, 1, "L")
+            self.ln(1)
+            self.set_font("Helvetica", "", 9)
+            self.set_text_color(220, 220, 220)
+            self.multi_cell(0, 4.5, body)
+            self.ln(2)
+
+    a0 = result.get("agent_0", {})
+    a2 = result.get("agent_2", {})
+    a3 = result.get("agent_3", {})
+    a4 = result.get("agent_4_risk", {})
+    a5 = result.get("agent_5", {})
+    a6 = result.get("agent_6", {})
+    a7 = result.get("agent_7", {})
+    pdf = ARGUSReport()
+    pdf.add_page()
+    pdf.set_fill_color(5, 8, 16); pdf.rect(0, 0, 210, 297, "F")
+    pdf.section("EXECUTIVE SUMMARY", (
+        f"Incident: {a0.get('corridor','N/A')} — {a0.get('commodity','N/A')}\n"
+        f"Economy: {a0.get('economy','N/A')}\n"
+        f"Risk Score: {a4.get('risk_score','N/A')} ({a4.get('risk_level','N/A')})\n"
+        f"System Confidence: {a4.get('confidence','N/A')}\n"
+        f"Conflict Status: {a7.get('status','N/A')} | Variance: {a7.get('variance','N/A')}"
+    ))
+    pdf.section("AGENT ANALYSIS", (
+        f"Agent 0 (Search Quality): {a0.get('status')} — specificity={a0.get('specificity_score')}\n"
+        f"Agent 1 (Research): {len(result.get('agent_1',{}).get('claims',[]))} claims\n"
+        f"Agent 2 (Verification): {len(a2.get('verified_claims',[]))} verified, {len(a2.get('flagged_claims',[]))} flagged\n"
+        f"Agent 3 (Graph): {a3.get('graph_summary',{}).get('total_nodes',0)} nodes, {a3.get('graph_summary',{}).get('total_edges',0)} edges\n"
+        f"Agent 4 (Risk): Score={a4.get('risk_score','N/A')} ({a4.get('risk_level','N/A')})\n"
+        f"Agent 5 (Synthesis): {len(a5.get('citations',[]))} citations\n"
+        f"Agent 6 (MCDA): {len(a6.get('alternatives',[]))} alternatives ranked\n"
+        f"Agent 7 (Conflict): {a7.get('status')}\n"
+        f"Agent 8 (ERASER): 8 agents audited"
+    ))
+    if a5.get("narrative"):
+        pdf.section("CSCO NARRATIVE", a5["narrative"])
+    risk_comp = "\n".join([f"{c['name']}: value={c['value']:.2f}, weight={c['weight']}, contribution={c['contribution']:.4f}" for c in a4.get("components",[])])
+    pdf.section("RISK COMPONENTS", risk_comp)
+    if a6.get("alternatives"):
+        alts_body = "\n".join([f"#{a['rank']} {a['name']} (score={a['score']:.4f}, lead_time={a.get('lead_time_days','?')}d)" for a in a6["alternatives"][:5]])
+        pdf.section("ALTERNATIVE SOURCING RANKING", alts_body)
+    pdf.section("UNCERTAINTY DISCLOSURE", (
+        "This report is based on:\n"
+        "- Verified government data (EIA/IEA/PIB): 73%\n"
+        "- Inferred from historical patterns: 17%\n"
+        "- LLM narrative synthesis: 10%\n\n"
+        "Known gaps:\n"
+        "- Real-time AIS data not integrated (static snapshot used)\n"
+        "- Refinery blending costs not modeled\n"
+        "- Geopolitical negotiation outcomes unpredictable"
+    ))
+    fname = f"ARGUS_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+    pdf.output(fname)
+    return fname
+
 
 # ── Header ─────────────────────────────────────────────────────
 cols = st.columns([0.3, 2.5, 2])
@@ -58,28 +145,22 @@ st.divider()
 # ── Input ──────────────────────────────────────────────────────
 input_col, run_col, clear_col = st.columns([3, 1, 1])
 with input_col:
-    user_input = st.text_input("Incident Description", value="Iran-Israel conflict, Strait of Hormuz, crude oil, India",
-                               placeholder="e.g., Strait of Hormuz, crude oil, India or Red Sea, LNG, Japan")
+    st.info("💡 The 8-agent pipeline should be run from the terminal (`python main.py`). Once it completes, click below to load the generated data and explore the dashboard.")
 with run_col:
-    if st.button("🚀 RUN ANALYSIS", type="primary", use_container_width=True):
+    if st.button("📂 LOAD LATEST RUN", type="primary", use_container_width=True):
         st.session_state.result = None
         st.session_state.human_decision = None
         st.session_state.show_debate = False
         st.session_state.decision_logged = False
-        with st.status("Running 8-agent pipeline + ERASER audits...", expanded=True) as status:
-            st.write("📡 Agent 0: Search Quality Gate")
-            st.write("📄 Agent 1: Research & Retrieval")
-            st.write("✅ Agent 2: Source Verification")
-            st.write("🗺️ Agent 3: Graph Builder (NetworkX)")
-            st.write("📊 Agent 4: Risk Analyzer (Cambridge Formula)")
-            st.write("📝 Agent 5: CSCO Synthesizer")
-            st.write("🔄 Agent 6: Alternative Sourcing (MCDA)")
-            st.write("⚖️ Agent 7: Consensus & Conflict Detector")
-            st.write("🛡️ Agent 8: ERASER (8 questions × 7 agents)")
-            result = asyncio.run(run_argus(user_input))
+        
+        try:
+            with open("latest_run.json", "r", encoding="utf-8") as f:
+                result = json.load(f)
             st.session_state.result = result
-            status.update(label="✅ Pipeline complete", state="complete")
-        st.rerun()
+            st.success("✅ Pipeline data loaded successfully!")
+        except FileNotFoundError:
+            st.error("⚠️ No `latest_run.json` found. Please run `python main.py` in your terminal first.")
+        
 with clear_col:
     if st.button("🗑️ CLEAR", use_container_width=True):
         for k in ("result", "human_decision", "show_debate", "decision_logged", "last_log"):
@@ -88,9 +169,6 @@ with clear_col:
                 st.session_state[k] = False
         st.rerun()
 
-async def run_argus(user_input: str) -> dict:
-    state = initial_state(user_input)
-    return await argus_app.ainvoke(state)
 
 # ── Results ────────────────────────────────────────────────────
 if st.session_state.result:
@@ -388,92 +466,8 @@ if st.session_state.result:
                 else:
                     st.warning("Enter a question first.")
 
-def log_decision(result: dict, action: str, reason: str = ""):
-    log = {
-        "decision_id": f"dec_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{id(result)}",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "human_action": action, "reason": reason or "Accepted after review",
-        "risk_score": result.get("agent_4_risk", {}).get("risk_score"),
-        "risk_level": result.get("agent_4_risk", {}).get("risk_level"),
-        "variance": result.get("agent_7", {}).get("variance"),
-        "agent_7_status": result.get("agent_7", {}).get("status"),
-    }
-    try:
-        with open("decision_log.jsonl", "a") as f:
-            f.write(json.dumps(log) + "\n")
-    except IOError:
-        pass
-    st.session_state.last_log = log
 
 # ── PDF Export ─────────────────────────────────────────────────
-def generate_pdf(result: dict) -> str:
-    class ARGUSReport(FPDF):
-        def header(self):
-            self.set_font("Helvetica", "B", 16)
-            self.set_text_color(231, 76, 60)
-            self.cell(0, 10, "ARGUS Energy Supply Chain Risk Report", 0, 1, "C")
-            self.set_font("Helvetica", "", 8)
-            self.set_text_color(150, 150, 150)
-            self.cell(0, 5, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}", 0, 1, "C")
-            self.ln(5)
-        def section(self, title, body):
-            self.set_font("Helvetica", "B", 11)
-            self.set_text_color(41, 128, 185)
-            self.cell(0, 7, title, 0, 1, "L")
-            self.ln(1)
-            self.set_font("Helvetica", "", 9)
-            self.set_text_color(220, 220, 220)
-            self.multi_cell(0, 4.5, body)
-            self.ln(2)
-
-    a0 = result.get("agent_0", {})
-    a2 = result.get("agent_2", {})
-    a3 = result.get("agent_3", {})
-    a4 = result.get("agent_4_risk", {})
-    a5 = result.get("agent_5", {})
-    a6 = result.get("agent_6", {})
-    a7 = result.get("agent_7", {})
-    pdf = ARGUSReport()
-    pdf.add_page()
-    pdf.set_fill_color(5, 8, 16); pdf.rect(0, 0, 210, 297, "F")
-    pdf.section("EXECUTIVE SUMMARY", (
-        f"Incident: {a0.get('corridor','N/A')} — {a0.get('commodity','N/A')}\n"
-        f"Economy: {a0.get('economy','N/A')}\n"
-        f"Risk Score: {a4.get('risk_score','N/A')} ({a4.get('risk_level','N/A')})\n"
-        f"System Confidence: {a4.get('confidence','N/A')}\n"
-        f"Conflict Status: {a7.get('status','N/A')} | Variance: {a7.get('variance','N/A')}"
-    ))
-    pdf.section("AGENT ANALYSIS", (
-        f"Agent 0 (Search Quality): {a0.get('status')} — specificity={a0.get('specificity_score')}\n"
-        f"Agent 1 (Research): {len(result.get('agent_1',{}).get('claims',[]))} claims\n"
-        f"Agent 2 (Verification): {len(a2.get('verified_claims',[]))} verified, {len(a2.get('flagged_claims',[]))} flagged\n"
-        f"Agent 3 (Graph): {a3.get('graph_summary',{}).get('total_nodes',0)} nodes, {a3.get('graph_summary',{}).get('total_edges',0)} edges\n"
-        f"Agent 4 (Risk): Score={a4.get('risk_score','N/A')} ({a4.get('risk_level','N/A')})\n"
-        f"Agent 5 (Synthesis): {len(a5.get('citations',[]))} citations\n"
-        f"Agent 6 (MCDA): {len(a6.get('alternatives',[]))} alternatives ranked\n"
-        f"Agent 7 (Conflict): {a7.get('status')}\n"
-        f"Agent 8 (ERASER): 8 agents audited"
-    ))
-    if a5.get("narrative"):
-        pdf.section("CSCO NARRATIVE", a5["narrative"])
-    risk_comp = "\n".join([f"{c['name']}: value={c['value']:.2f}, weight={c['weight']}, contribution={c['contribution']:.4f}" for c in a4.get("components",[])])
-    pdf.section("RISK COMPONENTS", risk_comp)
-    if a6.get("alternatives"):
-        alts_body = "\n".join([f"#{a['rank']} {a['name']} (score={a['score']:.4f}, lead_time={a.get('lead_time_days','?')}d)" for a in a6["alternatives"][:5]])
-        pdf.section("ALTERNATIVE SOURCING RANKING", alts_body)
-    pdf.section("UNCERTAINTY DISCLOSURE", (
-        "This report is based on:\n"
-        "- Verified government data (EIA/IEA/PIB): 73%\n"
-        "- Inferred from historical patterns: 17%\n"
-        "- LLM narrative synthesis: 10%\n\n"
-        "Known gaps:\n"
-        "- Real-time AIS data not integrated (static snapshot used)\n"
-        "- Refinery blending costs not modeled\n"
-        "- Geopolitical negotiation outcomes unpredictable"
-    ))
-    fname = f"ARGUS_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-    pdf.output(fname)
-    return fname
 
 if __name__ == "__main__":
     pass
