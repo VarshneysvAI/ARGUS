@@ -1,4 +1,5 @@
 <div align="center">
+  <img src="frontend/public/argus-logo.png" alt="ARGUS Logo" width="200" />
   <h1>🛡️ ARGUS</h1>
   <p><strong>Deterministic Energy Supply Chain Resilience Engine & Intelligence Platform</strong></p>
 
