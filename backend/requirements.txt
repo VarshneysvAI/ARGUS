@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pydantic
+sqlalchemy
+alembic
+asyncio
+websockets
+numpy
+scipy
+python-dotenv
+openai
+requests

@@ -1,0 +1,10 @@
+{
+  "corridor_id": "hormuz",
+  "display_name": "Strait of Hormuz",
+  "throughput_mbd": 20.5,
+  "india_exposure_share": 0.42,
+  "ais_bounding_box": [[24.0, 54.0], [27.5, 58.5]],
+  "freight_markup_matrix": { "jamnagar": 1.8, "paradip": 2.6 },
+  "grade_penalty_table": { "heavy_sour": 2.2, "medium_sour": 1.1 },
+  "baseline_flow_mbd": 17.0
+}

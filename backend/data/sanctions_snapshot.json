@@ -1,0 +1,7 @@
+{
+  "sanctioned_suppliers": ["NIOC (Iran)", "PDVSA (Venezuela)"],
+  "sanctioned_flag_states": ["IR", "VE"],
+  "restricted_corridors": [],
+  "source": "OFAC SDN + EU consolidated list — static snapshot",
+  "note": "Heuristic snapshot for hackathon demo; production = live list ingestion"
+}
