@@ -13,7 +13,7 @@ Work these items in the order listed. Effort estimates assume the 3-developer sp
 | C1 | **LIVE SIGNAL demo trigger** replaces continuous-monitoring cron loop. Cron/watch-mode is **deferred** to post-hackathon roadmap (API-call cost). | ACCEPTED (modified) | Stage 2 entry point + UI + DB | 0.5 day |
 | C2 | **SPR Drawdown Optimizer** — upgrade from descriptive depletion curve to prescriptive strategy ranking. Reserve floor 20%, static replenishment windows, no separate trigger (runs inside Stage 3). | ACCEPTED | Stage 3 | 0.5–1 day |
 | C3 | **National Economic Cascade** — extend impact chain refinery → pump price (₹/litre) → power-sector stress flag → GDP bps via static elasticity table. Cost delta also reported in **₹ crore/day** for a named refinery. | ACCEPTED | Stage 3 + UI | 0.5 day |
-| C4 | **Sanctions Compliance Pre-Filter** — static JSON of sanctioned entities/corridors applied as a hard filter *before* the TOPSIS matrix. | ACCEPTED | Stage 3 | 2–3 hours |
+| C4 | **Sanctions Compliance Pre-Filter** — static JSON of sanctioned entities/corridors applied as a hard filter *before* the heuristic matrix. | ACCEPTED | Stage 3 | 2–3 hours |
 | C5 | **Thread D (multi-modal PDF/image parser) CUT.** Stretch goal only; maps to no PS2 evaluation point. | CUT | — | saves ~1 day |
 | C6 | **Deployment split locked:** Next.js frontend on Vercel; FastAPI + AIS WebSocket backend on Azure (always-on). Vercel serverless **cannot** hold the persistent AIS WebSocket. | ACCEPTED | Section 7 | config only |
 | C7 | **Units convention fixed:** display `"15 mbd"`, never `"15M mbd"` (mbd already = million barrels/day). Pydantic hard bound `volume_lost_mbd ≤ 21` (total Hormuz throughput ≈ 20–21 mbd). | ACCEPTED | Stage 1 schema | 3 lines |
@@ -54,7 +54,7 @@ ARGUS v5.0 is a high-fidelity, adversarial energy supply chain intelligence plat
 |  [STAGE 3: DETERMINISTIC ANALYTICS ENGINE (Pure Python / NumPy / SciPy)]              |
 |   ├── Financial Pass-Through Calculator ($/day AND ₹ crore/day)                       |
 |   ├── Sanctions Compliance Pre-Filter (hard filter, pre-TOPSIS)          [NEW — C4]   |
-|   ├── TOPSIS Alternative Sourcing Ranker → Executable Procurement Cards               |
+|   ├── Heuristic Alternative Sourcing Ranker → Executable Procurement Cards            |
 |   ├── SPR Drawdown Optimizer (strategy ranking, 20% floor)               [NEW — C2]   |
 |   ├── National Economic Cascade (₹/litre, power stress, GDP bps)         [NEW — C3]   |
 |   └── SCRI Composite Risk Index (heuristic weights, disclosed)                        |
@@ -103,9 +103,9 @@ ARGUS v5.0 is a high-fidelity, adversarial energy supply chain intelligence plat
               STAGE 3: DETERMINISTIC ENGINE
    ┌──────────┬──────────┬──────────┬──────────┬──────────┐
    ▼          ▼          ▼          ▼          ▼          ▼
- Cost Δ    Sanctions   TOPSIS     SPR        Economic   SCRI
- $ + ₹cr   Pre-Filter  Ranking   Optimizer  Cascade    Index
-   └──────────┴──────────┴──────────┴──────────┴──────────┘
+  Cost Δ    Sanctions   Heuristic  SPR        Economic   SCRI
+  $ + ₹cr   Pre-Filter  Ranking    Optimizer  Cascade    Index
+    └──────────┴──────────┴──────────┴──────────┴──────────┘
                             │
                             ▼
               STAGE 4: ADVERSARIAL SYNTHESIS
@@ -126,7 +126,7 @@ ARGUS v5.0 is a high-fidelity, adversarial energy supply chain intelligence plat
 - **Stage 1 — LLM Extraction:** Produces the clean JSON payload (`corridor, commodity, economy, volume_lost_mbd, duration_days, confidence`). Pydantic enforces the schema and the ≤21 mbd physical bound, so the Python engine can never receive a KeyError or a physically impossible scenario.
 - **Stage 2 — Aggregation:** Async workers. Serper.dev fetches social chatter. The core pipeline relies on static corridor baseline JSONs, the EIA daily benchmark, and the AISstream.io bounding-box stream (with a cached AIS snapshot if the socket drops).
 - **D-Shield:** Pure Python comparator. If any OSINT-carried volume claim deviates >20% from the baseline figure, sets `variance=True`. This is the *only* path by which OSINT influences the narrative — it can trigger Scenario A/B text, but it can never touch Stage 3 math.
-- **Stage 3 — Python Analytics:** The absolute center of system truth. Executes cost delta (dual currency), sanctions pre-filter, TOPSIS ranking, SPR optimization, economic cascade, and SCRI in one NumPy pass. Re-runs identically on every Hover-to-Argue counterfactual.
+- **Stage 3 — Python Analytics:** The absolute center of system truth. Executes cost delta (dual currency), sanctions pre-filter, Heuristic ranking, SPR optimization, economic cascade, and SCRI in one NumPy pass. Re-runs identically on every Hover-to-Argue counterfactual.
 - **Stage 4 — Synthesis:** Receives flawless math. Drafts Scenario A vs. B **only** when `variance=True`; otherwise drafts a single coherent narrative. Wraps facts in `[CLAIM]` tags.
 - **Stage 5 — Regex Validator:** Scans the narrative. A `[CLAIM]` tag without valid citation metadata → `ValueError`, pipeline halts. Printed numbers are string-matched against Stage 3 floats.
 - **Control Gate:** Renders validated data, geospatial layers, procurement cards, cascade panel, and the latency banner (`t1 − t0`).
@@ -161,7 +161,7 @@ C_Δ = V_lost × (P_spot − P_contract + M_freight + δ_grade) + D_congestion
 
 ### B. Sanctions Compliance Pre-Filter (NEW — C4)
 
-Hard filter executed **before** TOPSIS. Any candidate supplier, flag state, or corridor present in `sanctions_snapshot.json` is removed from the decision matrix and surfaced in the UI as **"COMPLIANCE-BLOCKED"** (deliberately visible — demonstrating the filter working is a demo asset, not a hidden step).
+Hard filter executed **before** Heuristic Ranking. Any candidate supplier, flag state, or corridor present in `sanctions_snapshot.json` is removed from the decision matrix and surfaced in the UI as **"COMPLIANCE-BLOCKED"** (deliberately visible — demonstrating the filter working is a demo asset, not a hidden step).
 
 ```json
 {
@@ -173,7 +173,7 @@ Hard filter executed **before** TOPSIS. Any candidate supplier, flag state, or c
 }
 ```
 
-### C. Alternative Site Tracker (TOPSIS MCDA → Executable Procurement Cards)
+### C. Alternative Site Tracker (Heuristic MCDA → Executable Procurement Cards)
 
 Six criteria: *Refinery Grade Compatibility, Tanker Availability, Port Congestion Index, Landed Cost Profile, Transit Lead Time, Geopolitical Hazard Delta.*
 
@@ -188,7 +188,7 @@ Six criteria: *Refinery Grade Compatibility, Tanker Availability, Port Congestio
 {
   "rank": 1,
   "supplier_route": "Saudi Aramco — Ras Tanura → Jamnagar",
-  "topsis_score": 0.81,
+  "heuristic_score": 0.81,
   "landed_cost_usd_bbl": 84.20,
   "lead_time_days": 7,
   "vessel_class": "VLCC",
@@ -310,7 +310,7 @@ React/Next.js, deployed on Vercel.
 |                                       |    0    10   20   30   40   50  days         |
 |  [Scenario B — Base Case]             |   Recommended: S2 — coverage 34 days          |
 |  official baseline 9.1 mbd → ...      |                                               |
-|                                       |  [ PROCUREMENT CARDS — TOPSIS RANKED ]        |
+|                                       |  [ PROCUREMENT CARDS — HEURISTIC RANKED ]      |
 |  [ NATIONAL ECONOMIC CASCADE ]        |  #1 Ras Tanura→Jamnagar  $84.2  7d  CLEAR     |
 |  Pump: +₹3.4/litre | Power: ELEVATED  |  #2 Bonny→Paradip        $86.9 19d  CLEAR     |
 |  GDP: −18 bps (heuristic)             |  ✕ NIOC — COMPLIANCE-BLOCKED                  |
@@ -323,7 +323,7 @@ React/Next.js, deployed on Vercel.
 ### Advanced UI Interaction Mechanics
 
 - **⚡ LIVE SIGNAL button (C1):** Fires the cached breaking event, starts the on-screen timer, runs the full pipeline, freezes the timer when the briefing renders. The banner *is* the "end-to-end response time" evaluation metric, made visible.
-- **Hover-to-Argue Engine:** Narrative parsed for `[CLAIM]` tags. Hover → citation metadata. Click → counterfactual input (*"Assume volume lost is 15 mbd"*) → POST to FastAPI → `extracted_variables` updated → Stage 3 re-runs (cost, TOPSIS, SPR strategies, cascade all shift) → screen updates instantly.
+- **Hover-to-Argue Engine:** Narrative parsed for `[CLAIM]` tags. Hover → citation metadata. Click → counterfactual input (*"Assume volume lost is 15 mbd"*) → POST to FastAPI → `extracted_variables` updated → Stage 3 re-runs (cost, Heuristic Ranking, SPR strategies, cascade all shift) → screen updates instantly.
 - **Geospatial Canvas:** `react-map-gl` on `mapbox://styles/mapbox/satellite-streets-v12`; live AIS telemetry overlaid (cached snapshot if the socket drops).
 - **PDF Export:** Native CSS `@media print` strips sidebars and formats map + charts to A4. No backend rendering.
 - **SPR chart** always shows all three strategy curves, the 20% floor line, both inventory modes (SPR-only vs SPR+commercial), and the optimizer's recommendation.
@@ -390,7 +390,7 @@ Pitch line for judges: *"Adding a new corridor — Bab el-Mandeb, Malacca, anyth
 **Sprint 2 — Deterministic Engine & Telemetry** *(Dev 1 lead)*
 1. AISstream.io WebSocket client + geo-filter + **cached AIS snapshot fallback**.
 2. Cost delta `C_Δ` with dual $/₹-crore output (C3).
-3. Sanctions pre-filter → TOPSIS → Procurement Card JSON (C4).
+3. Sanctions pre-filter → Heuristic Ranking → Procurement Card JSON (C4).
 4. SPR Drawdown Optimizer: S1/S2/S3 strategies, 20% floor, recommendation logic (C2).
 5. Economic cascade module: ₹/litre, power flag, GDP bps (C3).
 
@@ -416,7 +416,7 @@ Pitch line for judges: *"Adding a new corridor — Bab el-Mandeb, Malacca, anyth
 |---|---|---|
 | Innovation (25%) | Epistemic split (LLMs never do math), regex claim-validator, D-Shield gated OSINT, Hover-to-Argue | Live demo + architecture diagram |
 | Business Impact (25%) | ₹ crore/day exposure, national cascade (pump/power/GDP), executable procurement cards | Cascade panel + cards |
-| Technical Excellence (20%) | Deterministic NumPy engine, Pydantic hard bounds, TOPSIS, SPR optimizer, WebSocket AIS | Math X-Ray |
+| Technical Excellence (20%) | Deterministic NumPy engine, Pydantic hard bounds, Heuristic Ranking, SPR optimizer, WebSocket AIS | Math X-Ray |
 | Scalability (15%) | Config-driven corridors — "new corridor = one JSON" | Deck slide + config file |
 | User Experience (15%) | Command-center UI, 3D map, live latency banner, one-click PDF | Live demo |
 
@@ -442,7 +442,7 @@ Pitch line for judges: *"Adding a new corridor — Bab el-Mandeb, Malacca, anyth
 ## 12. FUTURE ROADMAP (Post-Hackathon — say this when judges ask "what's next")
 
 1. **Continuous corridor watch loop** — cron-polled Serper + AIS anomaly scoring that auto-fires the pipeline on threshold breach (deferred from v5.0 for API cost; design already specced).
-2. **Knowledge graph** of supplier–route–risk–refinery relationships backing the TOPSIS matrices.
+2. **Knowledge graph** of supplier–route–risk–refinery relationships backing the Heuristic matrices.
 3. **Thread D multi-modal parser** (PyMuPDF + vision) for incident PDFs/imagery.
 4. **Live sanctions list ingestion** (OFAC/EU APIs) replacing the static snapshot.
 5. **Replenishment-window estimation** from real tender and freight data.
