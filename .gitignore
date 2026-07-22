@@ -13,3 +13,7 @@ build/
 .agents/
 *.pdf
 latest_run.json
+docs/
+ET_AI_Hackathon_Submission.md
+pdf-style.css
+frontend/public/screenshot-*.png

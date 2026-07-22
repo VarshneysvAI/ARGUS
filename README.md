@@ -14,9 +14,9 @@
 ---
 
 ## 📌 Strategic Overview
-**ARGUS** is an advanced agentic intelligence platform designed for geopolitical risk analysts and strategic decision-makers. It dynamically models the cascading economic and supply-chain impacts of macro-level shocks to global maritime chokepoints (e.g., Strait of Hormuz, Bab el-Mandeb).
+**ARGUS** is an advanced agentic intelligence platform built for **ET AI Hackathon 2026 — Problem Statement 2: AI-Driven Energy Supply Chain Resilience**. It enables geopolitical risk analysts and strategic decision-makers to model the cascading economic and supply-chain impacts of macro-level shocks to global maritime chokepoints (e.g., Strait of Hormuz, Bab el-Mandeb).
 
-Rather than relying purely on generative LLM hallucinations, ARGUS utilizes a strict **Agentic-to-Deterministic Pipeline**: extracting unstructured threat signals, converting them to immutable mathematical states, computing real-world physics (e.g., SPR drawdowns, tanker lead times), and finally synthesizing the math back into a high-level strategic intelligence briefing.
+Rather than relying purely on generative LLM hallucinations, ARGUS utilizes a strict **Agentic-to-Deterministic Pipeline**: extracting unstructured threat signals, converting them to immutable mathematical states, computing real-world physics (SPR drawdowns, tanker lead times, elasticity-based price surges), and synthesizing the math back into a strategic intelligence briefing — all in under 6 seconds.
 
 ## ✨ Core Capabilities
 
@@ -41,21 +41,43 @@ Rather than relying purely on generative LLM hallucinations, ARGUS utilizes a st
 
 ```mermaid
 graph TD
-    A[User Threat Query] --> B(Agent 1: Extraction)
-    B -->|JSON Payload| C[Deterministic Math Engine]
-    C -->|Calculates GDP Impact & Pump Price| D[Heuristic Ranking]
-    C -->|Applies OFAC Sanctions| D
-    D --> E(Agent 5: Synthesis)
+    A[Signal Trigger / Threat Query] --> B[Agent Pipeline: Extraction → Normalization → Validation]
+    B -->|Structured JSON| C[Deterministic Cascade Engine]
+    C -->|Supply Deficit mbd| D[Crude Price Surge Model]
+    D -->|Elasticity Premium| E[GDP Impact & Pump Price Calc]
+    D -->|SPR Drawdown Strategy| F[Heuristic Procurement Ranking]
+    F -->|OFAC Sanctions Filter| G[Agent Synthesis & Briefing]
+    G --> H[Next.js Dashboard + PDF Export]
     
-    subgraph Live OSINT & Data
-        F[Serper.dev Web Search] --> E
-        G[EIA Spot Price API] --> C
-        H[AISstream.io WebSocket] --> I[React MapView]
+    subgraph Live Data
+        I[Serper.dev Web Search]
+        J[EIA Spot Price API]
+        K[AISstream.io WebSocket]
     end
     
-    E --> J[Next.js Interactive Dashboard]
-    I --> J
+    I --> B
+    J --> C
+    K --> H
 ```
+
+---
+
+## 🖥️ Dashboard Features
+
+### Real-Time Signal Trigger
+Submit disruption scenarios (e.g., "OPEC cuts production by 2mbd") via the signal panel. ARGUS timestamps the request and streams pipeline progress in under 6 seconds.
+
+### Agent Transparency Terminal
+Every pipeline stage — extraction, normalization, validation, transformation, synthesis — is streamed live with color-coded log lines and timestamps. Full observability into how each number is derived.
+
+### Strategic Command Dashboard
+Key metrics at a glance: **Cost Delta per day ($675M+)**, **Pump price surge (₹24.75/L)**, **SPR drawdown rates**, **Vulnerability Index per chokepoint**. Stacked area charts track supply deficits across crude, diesel, and gasoline.
+
+### D-SHIELD Audit Layer
+Click any intelligence claim to launch an adversarial audit. D-SHIELD traces the claim back to its source OPEC announcement, pipeline transform, and deterministic model version — with confidence scores.
+
+### PDF Export
+One-click export generates a comprehensive PDF report including the executive summary, disruption table, dashboard charts, and full pipeline trace for stakeholder review.
 
 ---
 
@@ -108,8 +130,9 @@ The ARGUS Intelligence Dashboard will be accessible at `http://localhost:3000`.
 ---
 
 ## 🔒 Security & Resilience
-* **API Protection:** Hardcoded APIs have been purged. Live OSINT (Serper) operates via in-memory caching to prevent rate-limit exhaustion during peak query surges.
-* **Network Stability:** The AIS WebSocket relies on exponential backoff `while True` loops to survive server-side disconnections without dropping the client stream.
-* **Data Integrity:** Strict regex filtering cleans markdown-wrapped JSON payloads, permanently fixing the notorious Llama 3 format-breaking bug.
+* **API Protection:** All API keys are managed via environment variables (`backend/.env`). Live OSINT uses in-memory caching to prevent rate-limit exhaustion.
+* **Multi-Agent Fallback:** Primary NVIDIA NIM (`llama-3.1-70b`) with automatic failover to Groq (`llama-3.3-70b-versatile`) if the primary faults.
+* **Network Stability:** AIS WebSocket uses exponential backoff `while True` loops to survive server disconnections without dropping the client stream.
+* **Data Integrity:** Strict regex filtering cleans markdown-wrapped JSON payloads from LLM responses.
 
 > *"In geopolitical risk, confidence is nothing without calculation. ARGUS bridges the gap."*
